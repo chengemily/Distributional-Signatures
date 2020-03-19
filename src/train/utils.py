@@ -1,5 +1,15 @@
 import itertools
+import csv
 
+def init_csv(path):
+    with open(path, 'a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Iter", "Acc", "Std"])
+
+def write_csv(path, acc, std, iter):
+    with open(path, 'a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow([iter, acc, std])
 
 def named_grad_param(model, keys):
     '''

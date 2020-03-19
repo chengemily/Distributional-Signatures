@@ -10,7 +10,7 @@ from tqdm import tqdm
 from termcolor import colored
 
 from dataset.parallel_sampler import ParallelSampler
-from train.utils import named_grad_param, grad_param, get_norm
+from train.utils import named_grad_param, grad_param, get_norm, init_csv, write_csv
 
 
 def train(train_data, val_data, model, args):
@@ -25,6 +25,12 @@ def train(train_data, val_data, model, args):
                                   str(int(time.time() * 1e7))))
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
+
+    # Write results
+    write_acc_tr = 'acc_base.csv'
+    init_csv(write_acc_tr)
+    write_acc_val = 'val_acc_base.csv'
+    init_csv(write_acc_val)
 
     best_acc = 0
     sub_cycle = 0
@@ -67,6 +73,8 @@ def train(train_data, val_data, model, args):
                 colored("acc:", "blue"), acc, std,
                 ), flush=True)
 
+            write_csv(write_acc_tr, acc, std, ep)
+
         # Evaluate validation accuracy
         cur_acc, cur_std = test(val_data, model, args, args.val_episodes, False,
                                 val_gen.get_epoch())
@@ -80,6 +88,8 @@ def train(train_data, val_data, model, args):
                colored("ebd_grad:", "blue"), np.mean(np.array(grad['ebd'])),
                colored("clf_grad:", "blue"), np.mean(np.array(grad['clf'])),
                ), flush=True)
+
+        if ep % 10 == 0: write_csv(write_acc_val, cur_acc, cur_std, ep)
 
         # Update the current best model if val acc is better
         if cur_acc > best_acc:

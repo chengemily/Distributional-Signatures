@@ -410,7 +410,7 @@ def load_dataset(args):
         args.n_train_class = args.n_train_class + args.n_val_class
         args.n_val_class = args.n_train_class
 
-    tprint('Loading data')
+    tprint('Loading data from {}'.format(args.data_path))
     all_data = _load_json(args.data_path)
 
     tprint('Loading word vectors')

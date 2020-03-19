@@ -4,6 +4,7 @@ import pickle
 import signal
 import argparse
 import traceback
+import json
 
 import torch
 import numpy as np
@@ -12,6 +13,7 @@ import embedding.factory as ebd
 import classifier.factory as clf
 import dataset.loader as loader
 import train.factory as train_utils
+import dataset.embed_test as embed
 
 
 def parse_args():
@@ -20,9 +22,9 @@ def parse_args():
 
     # data configuration
     parser.add_argument("--data_path", type=str,
-                        default="data/reuters.json",
+                        default="data/20news.json", # og: reuters
                         help="path to dataset")
-    parser.add_argument("--dataset", type=str, default="reuters",
+    parser.add_argument("--dataset", type=str, default="20newsgroup", # og: reuters
                         help="name of the dataset. "
                         "Options: [20newsgroup, amazon, huffpost, "
                         "reuters, rcv1, fewrel]")
@@ -158,6 +160,8 @@ def parse_args():
     parser.add_argument("--meta_ebd", action="store_true", default=False,
                         help="use word embedding into the meta model "
                         "(showing that revealing word identity harm performance)")
+    parser.add_argument("--meta_cos_sims", action='store_true', default=False,
+                         help="computes cosine similarity to category word embeddings")
 
     # training options
     parser.add_argument("--seed", type=int, default=330, help="seed")
@@ -311,6 +315,16 @@ def main():
 
         with open(args.result_path, "wb") as f:
             pickle.dump(result, f, pickle.HIGHEST_PROTOCOL)
+
+def try_embed():
+    args = parse_args()
+
+    print_args(args)
+
+    set_seed(args.seed)
+
+    _, map = embed.embed_terms(args)
+    print(np.linalg.norm(np.array(map['0'])))
 
 
 if __name__ == "__main__":

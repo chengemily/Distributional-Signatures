@@ -4,6 +4,7 @@ import datetime
 from collections import OrderedDict
 import itertools
 import copy
+import csv
 
 import numpy as np
 import torch
@@ -13,7 +14,7 @@ from tqdm import tqdm
 from termcolor import colored
 
 from dataset.parallel_sampler import ParallelSampler
-from train.utils import named_grad_param, grad_param, get_norm
+from train.utils import named_grad_param, grad_param, get_norm, init_csv, write_csv
 
 
 def _copy_weights(source, target):
@@ -100,6 +101,12 @@ def train(train_data, val_data, model, args):
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
+    # Write results
+    write_acc_tr = 'acc.csv'
+    init_csv(write_acc_tr)
+    write_acc_val = 'val_acc.csv'
+    init_csv(write_acc_val)
+
     best_acc = 0
     sub_cycle = 0
     best_path = None
@@ -166,6 +173,8 @@ def train(train_data, val_data, model, args):
                 colored("acc:", "blue"), acc, std,
                 ), flush=True)
 
+            write_csv(write_acc_tr, acc, std, ep)
+
         # evaluate validation accuracy
         cur_acc, cur_std = test(val_data, model, args, args.val_episodes, False,
                                 val_gen.get_epoch())
@@ -181,6 +190,8 @@ def train(train_data, val_data, model, args):
                colored("clf_grad:", "blue"),
                np.mean(np.array(meta_grad_dict['clf']))
                ), flush=True)
+
+        if ep % 10 == 0: write_csv(write_acc_val, cur_acc, cur_std, ep)
 
         # Update the current best model if val acc is better
         if cur_acc > best_acc:

@@ -2,16 +2,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+import json
 
 from embedding.wordebd import WORDEBD
 from embedding.auxiliary.factory import get_embedding
-
+from embedding.auxiliary.utils import tile
 
 class RNN(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers, bidirectional,
             dropout):
         super(RNN, self).__init__()
 
+        # biLSTM
         self.rnn = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True,
                 bidirectional=bidirectional, dropout=dropout)
 
@@ -105,7 +107,8 @@ class META(nn.Module):
         self.ebd_dim = self.ebd.embedding_dim
 
         input_dim = int(args.meta_idf) + self.aux.embedding_dim + \
-            int(args.meta_w_target) + int(args.meta_iwf)
+            int(args.meta_w_target) + int(args.meta_iwf) + \
+                    5 * int(args.meta_cos_sims)  # number of distinct labels
 
         if args.meta_ebd:
             # abalation use distributional signatures with word ebd may fail
@@ -177,17 +180,22 @@ class META(nn.Module):
         '''
 
         # preparing the input for the meta model
+        # print('\n Building vectors for attention')
         x = self.aux(data)
+
         if self.args.meta_idf:
             idf = F.embedding(data['text'], data['idf']).detach()
             x = torch.cat([x, idf], dim=-1)
+            # print('Shape after meta idf: ', x.shape)
 
         if self.args.meta_iwf:
             iwf = F.embedding(data['text'], data['iwf']).detach()
             x = torch.cat([x, iwf], dim=-1)
+            # print('Shape after meta iwf: ', x.shape)
 
         if self.args.meta_ebd:
             x = torch.cat([x, ebd], dim=-1)
+            # print('Shape after meta ebd: ', x.shape)
 
         if self.args.meta_w_target:
             if self.args.meta_target_entropy:
@@ -203,12 +211,50 @@ class META(nn.Module):
                 w_target = torch.abs(ebd @ data['w_target'])
                 w_target = w_target.max(dim=2, keepdim=True)[0]
                 x = torch.cat([x, w_target.detach()], dim=-1)
+            # print('Shape after meta w target: ', x.shape)
 
+        if self.args.meta_cos_sims:
+            # compute cosine similarity for the embedding of each word to the category word
+            # embed each word so data dimensions are batchsize x N (seq len) x embed_dim
+            with open('20news_reps_cache_.json') as json_file:
+                topics = json.load(json_file)
+
+            # embed each topic -> N topics x embed_dim
+            class_list = list(set(
+                [int(elt) for elt in data['label']]
+            ))
+            class_list.sort() # guarantee for each training pass the elts are in the same order
+
+            topic_embeds = torch.FloatTensor([
+                topics[str(i)] for i in class_list
+            ]).cuda()
+
+            # Compute similarity
+            # w_sims = ebd @ topic_embeds.T.unsqueeze(0)
+
+            # Reshape to be batchsize x seq len, embed_dim
+            ebd_tmp = ebd.view(ebd.shape[0] * ebd.shape[1], ebd.shape[2])
+            # print('Batch size: ', ebd.shape[0])
+            # print('Reshaped size: ', ebd_tmp.shape)
+
+            # Compute similarity (works row by row)
+            ebd_tiled = tile(ebd_tmp, 0, topic_embeds.shape[0]) # repeats each row k times where k = # topics
+            topics_tiled = topic_embeds.repeat(ebd_tmp.shape[0], 1) # repeats tensor batchxN times
+
+            w_sims = F.cosine_similarity(ebd_tiled, topics_tiled, dim=1)
+
+            # reshape again
+            w_sims = w_sims.view(ebd.shape[0], ebd.shape[1], topic_embeds.shape[0])
+            x = torch.cat([x, w_sims.detach()], dim=-1)
+
+        # print('Input to meta model shape: ', x.shape)
+        # input()
         if self.args.embedding == 'meta':
             # run the LSTM
             hidden = self.rnn(x, data['text_len'])
         else:
             hidden = x
+
 
         # predict the logit
         logit = self.seq(hidden).squeeze(-1)  # batch_size * max_text_len
@@ -219,3 +265,6 @@ class META(nn.Module):
             return score.squeeze(), idf.squeeze(), w_target.squeeze()
         else:
             return score
+
+if __name__ == '__main__':
+    pass

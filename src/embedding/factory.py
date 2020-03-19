@@ -17,13 +17,17 @@ def get_embedding(vocab, args):
 
     # check if loading pre-trained embeddings
     if args.bert:
+        print('Embedding type: BERT')
         ebd = CXTEBD(args.pretrained_bert,
                      cache_dir=args.bert_cache_dir,
                      finetune_ebd=args.finetune_ebd,
                      return_seq=(args.embedding!='ebd'))
     else:
+        print('Embedding type: WORDEBD')
+        # WORDEBD returns a neural network layer that maps word tokens to vectors
         ebd = WORDEBD(vocab, args.finetune_ebd)
 
+    print('Using: ', args.embedding)
     if args.embedding == 'avg':
         model = AVG(ebd, args)
     elif args.embedding in ['idf', 'iwf']:
