@@ -316,16 +316,6 @@ def main():
         with open(args.result_path, "wb") as f:
             pickle.dump(result, f, pickle.HIGHEST_PROTOCOL)
 
-def try_embed():
-    args = parse_args()
-
-    print_args(args)
-
-    set_seed(args.seed)
-
-    _, map = embed.embed_terms(args)
-    print(np.linalg.norm(np.array(map['0'])))
-
 
 if __name__ == "__main__":
     try:

@@ -178,6 +178,10 @@ class META(nn.Module):
                 return statistics (input and output) for visualization purpose
             @return scale: batch_size * max_text_len * 1
         '''
+        print('EBD: ', ebd[:100])
+        print(ebd.shape)
+        print(data['text'])
+        input()
 
         # preparing the input for the meta model
         # print('\n Building vectors for attention')
@@ -186,16 +190,13 @@ class META(nn.Module):
         if self.args.meta_idf:
             idf = F.embedding(data['text'], data['idf']).detach()
             x = torch.cat([x, idf], dim=-1)
-            # print('Shape after meta idf: ', x.shape)
 
         if self.args.meta_iwf:
             iwf = F.embedding(data['text'], data['iwf']).detach()
             x = torch.cat([x, iwf], dim=-1)
-            # print('Shape after meta iwf: ', x.shape)
 
         if self.args.meta_ebd:
             x = torch.cat([x, ebd], dim=-1)
-            # print('Shape after meta ebd: ', x.shape)
 
         if self.args.meta_w_target:
             if self.args.meta_target_entropy:
@@ -211,7 +212,6 @@ class META(nn.Module):
                 w_target = torch.abs(ebd @ data['w_target'])
                 w_target = w_target.max(dim=2, keepdim=True)[0]
                 x = torch.cat([x, w_target.detach()], dim=-1)
-            # print('Shape after meta w target: ', x.shape)
 
         if self.args.meta_cos_sims:
             # compute cosine similarity for the embedding of each word to the category word

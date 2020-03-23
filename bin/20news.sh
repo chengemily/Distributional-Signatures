@@ -67,5 +67,5 @@ else
         --n_test_class=$n_test_class \
         --meta_iwf \
         --meta_w_target \
-        #--meta_cos_sims
+        --meta_cos_sims
 fi
