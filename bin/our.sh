@@ -10,11 +10,11 @@
 #n_val_class=5
 #n_test_class=10
 
-#dataset=20newsgroup
-#data_path="data/20news.json"
-#n_train_class=8
-#n_val_class=5
-#n_test_class=7
+dataset=20newsgroup
+data_path="data/20news.json"
+n_train_class=8
+n_val_class=5
+n_test_class=7
 
 #dataset=huffpost
 #data_path="data/huffpost.json"
@@ -28,11 +28,11 @@
 #n_val_class=10
 #n_test_class=24
 
-dataset=reuters
-data_path="data/reuters.json"
-n_train_class=15
-n_val_class=5
-n_test_class=11
+#dataset=reuters
+#data_path="data/reuters.json"
+#n_train_class=15
+#n_val_class=5
+#n_test_class=11
 
 if [ "$dataset" = "fewrel" ]; then
     python src/main.py \

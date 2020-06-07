@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import json
+import pandas as pd
 
 from embedding.wordebd import WORDEBD
 from embedding.auxiliary.factory import get_embedding
@@ -108,7 +109,7 @@ class META(nn.Module):
 
         input_dim = int(args.meta_idf) + self.aux.embedding_dim + \
             int(args.meta_w_target) + int(args.meta_iwf) + \
-                    5 * int(args.meta_cos_sims)  # number of distinct labels
+                    int(args.way) * int(args.meta_cos_sims)  # number of distinct labels
 
         if args.meta_ebd:
             # abalation use distributional signatures with word ebd may fail
@@ -174,15 +175,11 @@ class META(nn.Module):
             Compute the weight for each word
 
             @param data dictionary
+            @ebd batch_size * max_text_len * embed_dim
             @param return_stats bool
                 return statistics (input and output) for visualization purpose
             @return scale: batch_size * max_text_len * 1
         '''
-        print('EBD: ', ebd[:100])
-        print(ebd.shape)
-        print(data['text'])
-        input()
-
         # preparing the input for the meta model
         # print('\n Building vectors for attention')
         x = self.aux(data)
@@ -219,46 +216,31 @@ class META(nn.Module):
             with open('20news_reps_cache_.json') as json_file:
                 topics = json.load(json_file)
 
-            # embed each topic -> N topics x embed_dim
-            class_list = list(set(
-                [int(elt) for elt in data['label']]
-            ))
-            class_list.sort() # guarantee for each training pass the elts are in the same order
+            # embed each topic -> N topics (args.way) x embed_dim
+            unique_topics = list(pd.unique(data['label'].cpu()))
+            topic_embeds = torch.FloatTensor([topics[str(i)] for i in unique_topics]).cuda()
 
-            topic_embeds = torch.FloatTensor([
-                topics[str(i)] for i in class_list
-            ]).cuda()
-
-            # Compute similarity
-            # w_sims = ebd @ topic_embeds.T.unsqueeze(0)
+            # Normalize
+            ebd_norm = F.normalize(ebd, p=2, dim=2)
+            topic_norm = F.normalize(topic_embeds, p=2, dim=1)
 
             # Reshape to be batchsize x seq len, embed_dim
-            ebd_tmp = ebd.view(ebd.shape[0] * ebd.shape[1], ebd.shape[2])
-            # print('Batch size: ', ebd.shape[0])
-            # print('Reshaped size: ', ebd_tmp.shape)
+            ebd_norm = ebd_norm.view(ebd_norm.shape[0] * ebd_norm.shape[1], ebd.shape[2])
 
-            # Compute similarity (works row by row)
-            ebd_tiled = tile(ebd_tmp, 0, topic_embeds.shape[0]) # repeats each row k times where k = # topics
-            topics_tiled = topic_embeds.repeat(ebd_tmp.shape[0], 1) # repeats tensor batchxN times
-
-            w_sims = F.cosine_similarity(ebd_tiled, topics_tiled, dim=1)
-
-            # reshape again
+            # Compute similarity, reshape to batchsize, # topics
+            w_sims = ebd_norm @ topic_norm.T
             w_sims = w_sims.view(ebd.shape[0], ebd.shape[1], topic_embeds.shape[0])
+
             x = torch.cat([x, w_sims.detach()], dim=-1)
 
-        # print('Input to meta model shape: ', x.shape)
-        # input()
         if self.args.embedding == 'meta':
             # run the LSTM
             hidden = self.rnn(x, data['text_len'])
         else:
             hidden = x
 
-
         # predict the logit
         logit = self.seq(hidden).squeeze(-1)  # batch_size * max_text_len
-
         score = self._varlen_softmax(logit, data['text_len']).unsqueeze(-1)
 
         if return_stats:

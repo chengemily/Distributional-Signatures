@@ -1,10 +1,12 @@
 import os
 import time
 import datetime
+import json
 
 import torch
 import torch.nn as nn
 import numpy as np
+import random
 
 from tqdm import tqdm
 from termcolor import colored
@@ -17,6 +19,9 @@ def train(train_data, val_data, model, args):
     '''
         Train the model
         Use val_data to do early stopping
+
+        Args:
+            model (dict): {'ebd': embedding, 'clf': classifier}
     '''
     # creating a tmp directory to save the models
     out_dir = os.path.abspath(os.path.join(
@@ -27,16 +32,18 @@ def train(train_data, val_data, model, args):
         os.makedirs(out_dir)
 
     # Write results
-    write_acc_tr = 'acc_base.csv'
-    init_csv(write_acc_tr)
-    write_acc_val = 'val_acc_base.csv'
-    init_csv(write_acc_val)
+    # write_acc_tr = 'acc_base.csv'
+    # init_csv(write_acc_tr)
+    # write_acc_val = 'val_acc_base.csv'
+    # init_csv(write_acc_val)
 
     best_acc = 0
     sub_cycle = 0
     best_path = None
 
-    opt = torch.optim.Adam(grad_param(model, ['ebd', 'clf']), lr=args.lr)
+    # grad_param generates the learnable parameters from the classifier
+    params_to_opt = grad_param(model, ['ebd', 'clf'])
+    opt = torch.optim.Adam(params_to_opt, lr=args.lr)
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             opt, 'max', patience=args.patience//2, factor=0.1, verbose=True)
@@ -73,7 +80,7 @@ def train(train_data, val_data, model, args):
                 colored("acc:", "blue"), acc, std,
                 ), flush=True)
 
-            write_csv(write_acc_tr, acc, std, ep)
+            # write_csv(write_acc_tr, acc, std, ep)
 
         # Evaluate validation accuracy
         cur_acc, cur_std = test(val_data, model, args, args.val_episodes, False,
@@ -89,7 +96,7 @@ def train(train_data, val_data, model, args):
                colored("clf_grad:", "blue"), np.mean(np.array(grad['clf'])),
                ), flush=True)
 
-        if ep % 10 == 0: write_csv(write_acc_val, cur_acc, cur_std, ep)
+        # if ep % 10 == 0: write_csv(write_acc_val, cur_acc, cur_std, ep)
 
         # Update the current best model if val acc is better
         if cur_acc > best_acc:
@@ -150,8 +157,9 @@ def train_one(task, model, opt, args, grad):
         Train the model on one sampled task.
     '''
     model['ebd'].train()
-    model['clf'].train()
-    opt.zero_grad()
+    if not args.classifier == 'nn':
+        model['clf'].train()
+        opt.zero_grad()
 
     support, query = task
 
@@ -165,23 +173,27 @@ def train_one(task, model, opt, args, grad):
     # Apply the classifier
     _, loss = model['clf'](XS, YS, XQ, YQ)
 
+    print('loss: ', loss)
+
     if loss is not None:
         loss.backward()
 
     if torch.isnan(loss):
         # do not update the parameters if the gradient is nan
-        # print("NAN detected")
-        # print(model['clf'].lam, model['clf'].alpha, model['clf'].beta)
+        print("NAN detected")
+        print(model['clf'].lam, model['clf'].alpha, model['clf'].beta)
         return
 
     if args.clip_grad is not None:
         nn.utils.clip_grad_value_(grad_param(model, ['ebd', 'clf']),
                                   args.clip_grad)
 
-    grad['clf'].append(get_norm(model['clf']))
+    if args.classifier != 'nn':
+        grad['clf'].append(get_norm(model['clf']))
     grad['ebd'].append(get_norm(model['ebd']))
 
-    opt.step()
+    if args.classifier != 'nn':
+        opt.step()
 
 
 def test(test_data, model, args, num_episodes, verbose=True, sampled_tasks=None):
@@ -226,7 +238,24 @@ def test_one(task, model, args):
     support, query = task
 
     # Embedding the document
-    XS = model['ebd'](support)
+    if args.zero_shot:
+        # Use category or oracle embeddings instead
+        filename = args.path_to_embed_cache
+
+        with open(filename) as json_file:
+            topics = json.load(json_file)
+
+        # Test robustness to synonyms
+        if args.synonym:
+            support_topics = [random.choice(topics[str(int(i))]) for i in support['label'].cpu()]
+        else:
+            support_topics = [topics[str(int(i))] for i in support['label'].cpu()]
+
+        XS = torch.FloatTensor(support_topics).cuda()
+    else:
+        # normal version
+        XS = model['ebd'](support)
+
     YS = support['label']
 
     XQ = model['ebd'](query)

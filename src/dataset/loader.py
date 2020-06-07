@@ -59,6 +59,7 @@ def _get_20newsgroup_classes(args):
         if key[:key.find('.')] not in ['comp', 'sci', 'rec']:
             test_classes.append(label_dict[key])
 
+
     return train_classes, val_classes, test_classes
 
 
@@ -136,6 +137,16 @@ def _get_huffpost_classes(args):
     '''
         @return list of classes associated with each split
     '''
+    classes = {
+        20: 'crime', 2: 'entertainment', 28: 'world news', 18: 'impact', 0: 'politics',
+        22: 'weird news', 12: 'black voices', 17: 'women', 10: 'comedy', 7: 'queer voices',
+        11: 'sports', 9: 'business', 3: 'travel', 21: 'media', 30: 'tech', 25: 'religion',
+        27: 'science', 38: 'latino voices', 40: 'education', 37: 'college', 14: 'parents',
+        35: 'arts & culture', 26: 'style', 23: 'green', 29: 'taste', 6: 'healthy living',
+        15: 'the worldpost', 34: 'good news', 24: 'worldpost', 33: 'fifty', 32: 'arts',
+        1: 'wellness', 5: 'parenting', 13: 'home & living', 4: 'style & beauty', 19: 'divorce',
+        16: 'weddings', 8: 'food & drink', 31: 'money', 36: 'environment', 39: 'culture & arts'
+    }
 
     train_classes = list(range(20))
     val_classes = list(range(20,25))

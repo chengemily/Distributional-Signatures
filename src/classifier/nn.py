@@ -1,6 +1,7 @@
 import torch
 from classifier.base import BASE
-
+import torch.nn.functional as F
+from random import randrange
 
 class NN(BASE):
     '''
@@ -14,8 +15,8 @@ class NN(BASE):
         '''
             @param XS (support x): support_size x ebd_dim
             @param YS (support y): support_size
-            @param XQ (support x): query_size x ebd_dim
-            @param YQ (support y): query_size
+            @param XQ (query x): query_size x ebd_dim
+            @param YQ (query y): query_size
 
             @return acc
             @return None (a placeholder for loss)
@@ -27,8 +28,13 @@ class NN(BASE):
         else:
             raise ValueError("nn_distance can only be l2 or cos.")
 
-        # 1-NearestNeighbour
-        nn_idx = torch.argmin(dist, dim=1)
+        if self.args.random:
+            # Random choice baseline
+            nn_idx = randrange(self.args.way)
+        else:
+            # 1-NearestNeighbour
+            nn_idx = torch.argmin(dist, dim=1)
+
         pred = YS[nn_idx]
 
         acc = torch.mean((pred == YQ).float()).item()

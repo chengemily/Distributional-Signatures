@@ -13,7 +13,7 @@ import embedding.factory as ebd
 import classifier.factory as clf
 import dataset.loader as loader
 import train.factory as train_utils
-import dataset.embed_test as embed
+import dataset.embed_cache as embed
 
 
 def parse_args():
@@ -56,6 +56,7 @@ def parse_args():
     parser.add_argument("--query", type=int, default=25,
                         help="#query examples for each class for each task")
 
+
     # train/test configuration
     parser.add_argument("--train_epochs", type=int, default=1000,
                         help="max num of training epochs")
@@ -87,6 +88,12 @@ def parse_args():
     parser.add_argument("--auxiliary", type=str, nargs="*", default=[],
                         help=("auxiliary embeddings (used for fewrel). "
                               "Options: [pos, ent]"))
+    parser.add_argument("--zero_shot", default=False, action="store_true",
+                        help="Chooses pre-cached support/query sets for zero-shot testing.")
+    parser.add_argument("--path_to_embed_cache", type=str, default='',
+                        help="Set when using zero shot testing. Embedding jsons found in"
+                             "./cached_embeds/"
+                        )
 
     # cnn configuration
     parser.add_argument("--cnn_num_filters", type=int, default=50,
@@ -95,6 +102,7 @@ def parse_args():
                         default=[3, 4, 5],
                         help="Filter sizes [default: 3]")
 
+    # nn configuration
     # nn configuration
     parser.add_argument("--nn_distance", type=str, default="l2",
                         help=("distance for nearest neighbour. "
@@ -136,6 +144,12 @@ def parse_args():
                         help="Size of position embedding")
     parser.add_argument("--pos_max_len", type=int, default=40,
                         help="Maximum sentence length for position embedding")
+
+    # NN classifier zero shot configuration
+    parser.add_argument("--synonym", action="store_true", default=False,
+                        help=("Tests robustness to synonyms if True."))
+    parser.add_argument("--random", action="store_true", default=False,
+                        help=("Picks a random class at test time as a baseline."))
 
     # base word embedding
     parser.add_argument("--wv_path", type=str,
@@ -253,6 +267,35 @@ def set_seed(seed):
     np.random.seed(seed)
 
 
+def embed_cache():
+    """
+    Embeds new topics
+    """
+    args = parse_args()
+
+    print_args(args)
+    # classes = [
+    #     'mideast', 'space', 'sale', 'politics', 'graphics',
+    #     'cryptography', 'windows', 'microsoft', 'guns',
+    #     'religion', 'autos', 'medicine', 'mac', 'electronics',
+    #     'hockey', 'atheism', 'motorcycles', 'pc', 'baseball', 'christian'
+    # ]
+
+    classes = ['politics', 'wellness', 'entertainment', 'travel', 'beauty', 'parenting', 'healthy', 'queer',
+     'food', 'business', 'comedy', 'sports', 'black', 'home', 'parents', 'worldpost',
+     'weddings', 'women', 'impact', 'divorce', 'crime', 'media', 'weird', 'green', 'worldpost', 'religion',
+     'style', 'science', 'worldnews', 'taste', 'tech', 'money', 'arts', 'fifty', 'good news', 'culture',
+     'environment', 'college', 'latino', 'culture', 'education']
+
+    embed.embed_terms(
+        args,
+        classes,
+        '../cached_embeds/huffpost_topic_embed_.json',
+        use_cache=False,
+    )
+
+
+
 def main():
     args = parse_args()
 
@@ -267,6 +310,7 @@ def main():
     model = {}
     model["ebd"] = ebd.get_embedding(vocab, args)
     model["clf"] = clf.get_classifier(model["ebd"].ebd_dim, args)
+
 
     if args.mode == "train":
         # train model on train_data, early stopping based on val_data
@@ -297,6 +341,7 @@ def main():
 
     test_acc, test_std = train_utils.test(test_data, model, args,
                                           args.test_episodes)
+
 
     if args.result_path:
         directory = args.result_path[:args.result_path.rfind("/")]

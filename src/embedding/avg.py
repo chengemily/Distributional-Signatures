@@ -22,8 +22,6 @@ class AVG(nn.Module):
             @param weights placeholder used for maml
             @return output: batch_size * embedding_dim
         '''
-        print('Data: ', data)
-        input()
         ebd = self.ebd(data, weights)
 
         # count length excluding <pad> and <unk>.

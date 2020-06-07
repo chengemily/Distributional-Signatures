@@ -150,6 +150,9 @@ def train(train_data, val_data, model, args):
                 _copy_weights(model['ebd'], fast_model['ebd'])
                 _copy_weights(model['clf'], fast_model['clf'])
 
+                print('task: ', task)
+                input()
+
                 # get the meta gradient
                 if args.maml_firstorder:
                     train_one_fomaml(task, fast_model, args, total_grad)
